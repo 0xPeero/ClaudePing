@@ -39,9 +39,10 @@ install_files() {
     echo "ClaudePing: Keeping existing .env config."
   fi
 
-  # Make scripts executable
+  # Make scripts executable, protect secrets
   chmod +x "$INSTALL_DIR/claudeping.sh" 2>/dev/null || true
   chmod +x "$INSTALL_DIR/claudeping-interact.js" 2>/dev/null || true
+  chmod 600 "$INSTALL_DIR/.env" 2>/dev/null || true
 
   echo "ClaudePing: Scripts installed to $INSTALL_DIR/"
 }

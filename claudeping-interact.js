@@ -138,6 +138,7 @@ async function editMessageText(token, chatId, messageId, newText) {
 // ===== 6. Flush Stale Updates + Check Mode Toggle =====
 
 function updateEnvMode(newMode) {
+  if (newMode !== 'notify' && newMode !== 'interactive') return;
   var envDir = __dirname;
   var envPath = path.join(envDir, '.env');
   if (!fs.existsSync(envPath)) {

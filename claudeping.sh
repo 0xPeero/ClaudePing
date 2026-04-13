@@ -58,9 +58,15 @@ resolve_script_dir() {
 SCRIPT_DIR="$(resolve_script_dir)"
 ENV_FILE="$SCRIPT_DIR/.env"
 if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  source "$ENV_FILE"
-  set +a
+  while IFS='=' read -r key value; do
+    key="${key%%[[:space:]]*}"
+    value="${value##[[:space:]]}"
+    value="${value%[[:space:]]}"
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    case "$key" in
+      CLAUDEPING_*) export "$key=$value" ;;
+    esac
+  done < "$ENV_FILE"
 fi
 
 # ===== 4. Validate required variables =====
@@ -77,8 +83,9 @@ html_escape() {
   printf '%s' "$text"
 }
 
-# ===== 6. Parse JSON via node -e =====
-eval "$(echo "$INPUT" | node -e "
+# ===== 6. Parse JSON via node (no eval -- line-delimited for safety) =====
+# Node outputs one value per line. Newlines within values replaced with spaces.
+PARSED="$(echo "$INPUT" | node -e "
   let d='';
   process.stdin.on('data',c=>d+=c);
   process.stdin.on('end',()=>{
@@ -87,17 +94,10 @@ eval "$(echo "$INPUT" | node -e "
       const cwd = (j.cwd||'').replace(/[\\\\/]+/g,'/');
       const project = cwd.split('/').filter(Boolean).pop() || 'unknown';
       const event = j.hook_event_name || 'unknown';
-      const title = j.title || '';
-      const message = j.message || '';
+      const title = (j.title || '').replace(/\n/g, ' ');
+      const message = (j.message || '').replace(/\n/g, ' ');
       const toolName = j.tool_name || '';
       const notifType = j.notification_type || '';
-      console.log('CP_PROJECT=' + JSON.stringify(project));
-      console.log('CP_EVENT=' + JSON.stringify(event));
-      console.log('CP_TITLE=' + JSON.stringify(title));
-      console.log('CP_MESSAGE=' + JSON.stringify(message));
-      console.log('CP_TOOL=' + JSON.stringify(toolName));
-      console.log('CP_NOTIF_TYPE=' + JSON.stringify(notifType));
-      // Emoji as HTML numeric entities (pure ASCII, eval-safe, rendered by Telegram HTML parser)
       const emojiMap = {
         'Stop':         ['&#9989;', 'Task Complete'],
         'SubagentStop': ['&#9989;', 'Subagent Complete'],
@@ -106,26 +106,26 @@ eval "$(echo "$INPUT" | node -e "
         'permission_prompt': ['&#128272;', 'Needs Approval'],
         'idle_prompt':       ['&#10067;', 'Needs Input'],
       };
-      let pair = notifMap[notifType] || emojiMap[event] || (event === 'Notification' ? ['&#128276;', 'Notification'] : ['&#128221;', 'Event']);
-      console.log('CP_EMOJI=' + JSON.stringify(pair[0]));
-      console.log('CP_EVENT_LABEL=' + JSON.stringify(pair[1]));
+      const pair = notifMap[notifType] || emojiMap[event] || (event === 'Notification' ? ['&#128276;', 'Notification'] : ['&#128221;', 'Event']);
+      [project, event, title, message, toolName, notifType, pair[0], pair[1]].forEach(v => console.log(v));
     } catch(e) {
-      console.log('CP_PROJECT=\"unknown\"');
-      console.log('CP_EVENT=\"unknown\"');
-      console.log('CP_TITLE=\"\"');
-      console.log('CP_MESSAGE=\"\"');
-      console.log('CP_TOOL=\"\"');
-      console.log('CP_NOTIF_TYPE=\"\"');
+      ['unknown','unknown','','','','','&#128221;','Event'].forEach(v => console.log(v));
     }
   });
-")" 2>/dev/null || {
-  CP_PROJECT="unknown"
-  CP_EVENT="unknown"
-  CP_TITLE=""
-  CP_MESSAGE=""
-  CP_TOOL=""
-  CP_NOTIF_TYPE=""
-}
+" 2>/dev/null)" || PARSED=""
+
+{
+  read -r CP_PROJECT
+  read -r CP_EVENT
+  read -r CP_TITLE
+  read -r CP_MESSAGE
+  read -r CP_TOOL
+  read -r CP_NOTIF_TYPE
+  read -r CP_EMOJI
+  read -r CP_EVENT_LABEL
+} <<< "$PARSED"
+CP_PROJECT="${CP_PROJECT:-unknown}"
+CP_EVENT="${CP_EVENT:-unknown}"
 
 # ===== 6b. Event filtering: check if current event is in allowed list =====
 EVENTS="${CLAUDEPING_EVENTS:-Stop,Notification}"
@@ -134,10 +134,12 @@ if [[ ",$EVENTS," != *",$CP_EVENT,"* ]]; then
 fi
 
 # ===== 6c. Silent notification: check per-event CLAUDEPING_SILENT_* var =====
-SILENT_VAR="CLAUDEPING_SILENT_$(echo "$CP_EVENT" | tr '[:lower:]' '[:upper:]')"
 DISABLE_NOTIFICATION="false"
-if [[ "${!SILENT_VAR}" == "true" ]]; then
-  DISABLE_NOTIFICATION="true"
+if [[ "$CP_EVENT" =~ ^[A-Za-z]+$ ]]; then
+  SILENT_VAR="CLAUDEPING_SILENT_$(echo "$CP_EVENT" | tr '[:lower:]' '[:upper:]')"
+  if [[ "${!SILENT_VAR}" == "true" ]]; then
+    DISABLE_NOTIFICATION="true"
+  fi
 fi
 
 # ===== 7. Emoji and event label =====
