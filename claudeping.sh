@@ -27,7 +27,7 @@ if [[ "${1:-}" == "--mode" ]]; then
     exit 0
   fi
   if [[ -f "$ENV_MODE" ]] && grep -q "^CLAUDEPING_MODE=" "$ENV_MODE" 2>/dev/null; then
-    sed -i "s/^CLAUDEPING_MODE=.*/CLAUDEPING_MODE=$NEW_MODE/" "$ENV_MODE"
+    sed -i.bak "s/^CLAUDEPING_MODE=.*/CLAUDEPING_MODE=$NEW_MODE/" "$ENV_MODE" && rm -f "${ENV_MODE}.bak"
   else
     echo "CLAUDEPING_MODE=$NEW_MODE" >> "$ENV_MODE"
   fi

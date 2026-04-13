@@ -98,24 +98,24 @@ assert_contains "Test 6j: has --test flag" "$CONTENT" "\-\-test"
 assert_contains "Test 6k: has success message" "$CONTENT" "Test notification sent successfully"
 assert_contains "Test 6l: ends with exit 0" "$CONTENT" "exit 0"
 
-# Test 7: stdin-first ordering (INPUT=$(cat) appears before source)
+# Test 7: stdin-first ordering (INPUT=$(cat) appears before .env loading)
 echo "--- Test 7: stdin-first ordering ---"
 INPUT_LINE=$(grep -n 'INPUT=\$(cat)' "$SCRIPT" | head -1 | cut -d: -f1)
-SOURCE_LINE=$(grep -n '^[[:space:]]*source ' "$SCRIPT" | head -1 | cut -d: -f1)
-if [[ -n "$INPUT_LINE" ]] && [[ -n "$SOURCE_LINE" ]] && [[ "$INPUT_LINE" -lt "$SOURCE_LINE" ]]; then
-  echo "PASS: Test 7: INPUT=\$(cat) (line $INPUT_LINE) before source (line $SOURCE_LINE)"
+ENV_LINE=$(grep -n 'done < "$ENV_FILE"' "$SCRIPT" | head -1 | cut -d: -f1)
+if [[ -n "$INPUT_LINE" ]] && [[ -n "$ENV_LINE" ]] && [[ "$INPUT_LINE" -lt "$ENV_LINE" ]]; then
+  echo "PASS: Test 7: INPUT=\$(cat) (line $INPUT_LINE) before .env load (line $ENV_LINE)"
   ((PASS++))
 else
-  echo "FAIL: Test 7: stdin not read before source (INPUT line: $INPUT_LINE, source line: $SOURCE_LINE)"
+  echo "FAIL: Test 7: stdin not read before .env load (INPUT line: $INPUT_LINE, env line: $ENV_LINE)"
   ((FAIL++))
 fi
 
-# Test 8: Emoji characters present
-echo "--- Test 8: Emoji characters present ---"
-assert_contains "Test 8a: has checkmark emoji" "$CONTENT" $'\xe2\x9c\x85'
-assert_contains "Test 8b: has question mark emoji" "$CONTENT" $'\xe2\x9d\x93'
-assert_contains "Test 8c: has satellite emoji" "$CONTENT" $'\xf0\x9f\x93\xa1'
-assert_contains "Test 8d: has lock emoji" "$CONTENT" $'\xf0\x9f\x94\x90'
+# Test 8: Emoji HTML entities present
+echo "--- Test 8: Emoji HTML entities present ---"
+assert_contains "Test 8a: has checkmark entity" "$CONTENT" '&#9989;'
+assert_contains "Test 8b: has question entity" "$CONTENT" '&#10067;'
+assert_contains "Test 8c: has satellite entity" "$CONTENT" '&#128225;'
+assert_contains "Test 8d: has lock entity" "$CONTENT" '&#128272;'
 
 # Test 9: Event filtering - script contains CLAUDEPING_EVENTS logic
 echo "--- Test 9: Event filtering logic ---"
