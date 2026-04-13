@@ -1,0 +1,11 @@
+# Planning and dev artifacts
+.planning/
+.claude/
+CLAUDE.md
+
+# Secrets
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
